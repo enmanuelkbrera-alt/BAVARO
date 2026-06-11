@@ -714,13 +714,13 @@ export default function SistemaRutinas() {
                           onChange={(e) => setFiltroCompra(e.target.value)}
                         >
                           <option value="">▼ Todas</option>
-                          {[...new Set(compras.map((c) => c.__EMPTY_4))]
-                            .filter(Boolean)
-                            .map((f, i) => (
-                              <option key={i} value={f}>
-                                {f}
-                              </option>
-                            ))}
+                        {Array.from(new Set(compras.map((c) => c.__EMPTY_4)))
+  .filter(Boolean)
+  .map((f, i) => (
+    <option key={i} value={f}>
+      {f}
+    </option>
+))}
                         </select>
                       </th>
 
