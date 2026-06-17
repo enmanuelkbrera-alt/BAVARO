@@ -5,37 +5,10 @@ import { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 
 export default function SistemaRutinas() {
-  const colaboradores = [
-    'Eunice Nunez',
-    'Amaurys Mendez',
-    'Aaron Guzman',
-    'Kelly Duran',
-    'Sonny Guzman',
-    'James Almonte',
-    'Enmanuel Francisco',
-    'Mayelin Espinal',
-    'Shayra Cabrera',
-    'Jose Daniel',
-    'Maria Rosario',
-  ];
-
-  const tareasBase = [
-    'Revisar correos de presupuestos',
-    'Filtrar compras almacenadas',
-    'Hacer devoluciones por tiempo en tienda',
-    'Revisar el bin amarillo del holding para limpiarlo',
-    'Reposición de catálogos',
-    'Reposición de carritos',
-    'Revisar la mercancía de venta directa',
-    'Revisar si hay mercancía física fuera de ruta',
-    'Asegurarse que el tono de los teléfonos tenga volumen',
-    'Revisar compras enganchadas',
-    'Revisar los lockers',
-  ];
-
   const [pestana, setPestana] = useState('historial');
 
   const [colaborador, setColaborador] = useState('');
+  const [tienda, setTienda] = useState<string>('');
 
   const [busqueda, setBusqueda] = useState('');
   const [busquedaCompras, setBusquedaCompras] = useState('');
@@ -52,19 +25,59 @@ export default function SistemaRutinas() {
   const [filtroDias, setFiltroDias] = useState('');
   const [filtroPaqueteria, setFiltroPaqueteria] = useState('');
   const [mostrarColaboradores, setMostrarColaboradores] = useState(true);
+  const [listaColaboradores, setListaColaboradores] = useState<any[]>([]);
+  const [rutinasBase, setRutinasBase] = useState<any[]>([]);
+  const [nuevoColaborador, setNuevoColaborador] = useState('');
+  const [nuevaRutina, setNuevaRutina] = useState('');
+  const [adminAutorizado, setAdminAutorizado] = useState(false);
+  const [mostrarRegistro, setMostrarRegistro] = useState(true);
+  const [mostrarCompras, setMostrarCompras] = useState(true);
+  const [mostrarVolumen, setMostrarVolumen] = useState(true);
+  const [tiendaAutorizada, setTiendaAutorizada] = useState(false);
+  const [prioridadesDia, setPrioridadesDia] = useState<any[]>([]);
+  const [nuevaPrioridad, setNuevaPrioridad] = useState('');
+  const [nivelPrioridad, setNivelPrioridad] = useState('ALTA');
 
-  const [tareas, setTareas] = useState(
-    tareasBase.map((t) => ({
-      nombre: t,
-      realizada: false,
-      observacion: '',
-    }))
-  );
+  useEffect(() => {
+    console.log('CAMBIO DE TIENDA');
+    console.log('ADMIN ANTES:', adminAutorizado);
+    setAdminAutorizado(false);
+    console.log('ADMIN RESETEADO');
+
+    setCompras([]);
+    setListaColaboradores([]);
+    setRutinasBase([]);
+    setTareas([]);
+
+    cargarHistorial();
+    cargarColaboradores();
+    cargarRutinasBase();
+    console.log('NUEVO VALOR ADMIN:', adminAutorizado);
+  }, [tienda]);
+
+  useEffect(() => {
+    cargarHistorial();
+    cargarColaboradores();
+    cargarRutinasBase();
+    cargarPrioridades();
+  }, [tienda]);
+
+  const CODIGO_ADMIN = '1234';
+
+  const CODIGOS_TIENDA: Record<string, string> = {
+    SANTIAGO: '1234',
+    'SANTO DOMINGO': '5678',
+    'LA ROMANA': '9012',
+    BAVARO: '3456',
+  };
+
+  const [tareas, setTareas] = useState<any[]>([]);
 
   const cargarHistorial = async () => {
     const { data, error } = await supabase
       .from('rutinas')
       .select('*')
+      .eq('tienda', tienda)
       .order('id', {
         ascending: false,
       });
@@ -77,9 +90,183 @@ export default function SistemaRutinas() {
     setHistorial(data || []);
   };
 
-  useEffect(() => {
-    cargarHistorial();
-  }, []);
+  const cargarPrioridades = async () => {
+    const { data, error } = await supabase
+      .from('prioridades_dia')
+      .select('*')
+      .eq('activa', true)
+      .eq('tienda', tienda)
+      .order('id', {
+        ascending: false,
+      });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setPrioridadesDia(data || []);
+  };
+  const cargarColaboradores = async () => {
+    const { data, error } = await supabase
+      .from('colaboradores')
+      .select('*')
+      .eq('activo', true)
+      .eq('tienda', tienda)
+      .order('nombre');
+    console.log('COLABORADORES:', data);
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setListaColaboradores(data || []);
+  };
+  const cargarRutinas = async () => {
+    const { data, error } = await supabase
+      .from('rutinas_base')
+      .select('*')
+      .eq('activo', true)
+      .eq('tienda', tienda)
+      .order('nombre');
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setRutinasBase(data || []);
+
+    setTareas(
+      (data || []).map((r) => ({
+        nombre: r.nombre,
+        realizada: false,
+        observacion: '',
+      }))
+    );
+  };
+  const agregarColaborador = async () => {
+    if (!nuevoColaborador.trim()) return;
+
+    const { error } = await supabase.from('colaboradores').insert([
+      {
+        nombre: nuevoColaborador,
+        activo: true,
+        tienda,
+      },
+    ]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setNuevoColaborador('');
+
+    await cargarColaboradores();
+  };
+  const desactivarColaborador = async (id: number) => {
+    await supabase
+      .from('colaboradores')
+      .update({
+        activo: false,
+      })
+      .eq('id', id);
+
+    await cargarColaboradores();
+  };
+
+  const agregarRutina = async () => {
+    if (!nuevaRutina.trim()) return;
+
+    const { error } = await supabase.from('rutinas_base').insert([
+      {
+        nombre: nuevaRutina,
+        activo: true,
+        tienda,
+      },
+    ]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setNuevaRutina('');
+
+    await cargarRutinasBase();
+  };
+
+  const eliminarRutina = async (id: number) => {
+    await supabase
+      .from('rutinas_base')
+      .update({
+        activo: false,
+      })
+      .eq('id', id);
+
+    await cargarRutinasBase();
+  };
+
+  const agregarPrioridad = async () => {
+    if (!nuevaPrioridad.trim()) return;
+
+    const { error } = await supabase.from('prioridades_dia').insert([
+      {
+        descripcion: nuevaPrioridad,
+        prioridad: nivelPrioridad,
+        activa: true,
+        tienda,
+      },
+    ]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setNuevaPrioridad('');
+
+    await cargarPrioridades();
+  };
+
+  const eliminarPrioridad = async (id: number) => {
+    await supabase
+      .from('prioridades_dia')
+      .update({
+        activa: false,
+      })
+      .eq('id', id);
+
+    await cargarPrioridades();
+  };
+
+  const cargarRutinasBase = async () => {
+    const { data, error } = await supabase
+      .from('rutinas_base')
+      .select('*')
+      .eq('activo', true)
+      .eq('tienda', tienda)
+      .order('nombre');
+
+    console.log('RUTINAS:', data);
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setRutinasBase(data || []);
+
+    setTareas(
+      (data || []).map((r: any) => ({
+        nombre: r.nombre,
+        realizada: false,
+        observacion: '',
+      }))
+    );
+  };
 
   const importarExcel = (e: any) => {
     const file = e.target.files[0];
@@ -87,7 +274,6 @@ export default function SistemaRutinas() {
     if (!file) return;
 
     const reader = new FileReader();
-
     reader.onload = (evt: any) => {
       const data = new Uint8Array(evt.target.result);
 
@@ -100,16 +286,37 @@ export default function SistemaRutinas() {
       const worksheet = workbook.Sheets[sheetName];
 
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      console.log(jsonData[0]);
+      const tituloExcel = Object.keys(jsonData[0] || {})[0] || '';
+
+      let tiendaDetectada = 'SANTIAGO';
+
+      if (tituloExcel.toUpperCase().includes('SANTO DOMINGO'))
+        tiendaDetectada = 'SANTO DOMINGO';
+
+      if (tituloExcel.toUpperCase().includes('BAVARO'))
+        tiendaDetectada = 'BAVARO';
+
+      if (tituloExcel.toUpperCase().includes('ROMANA'))
+        tiendaDetectada = 'LA ROMANA';
+      if (tiendaDetectada !== tienda) {
+        alert(
+          `⚠️ Archivo incorrecto.\n\n` +
+            `Tienda seleccionada: ${tienda}\n` +
+            `Tienda del archivo: ${tiendaDetectada}`
+        );
+
+        return;
+      }
 
       const depurado = jsonData.map((item: any) => {
         const texto = JSON.stringify(item || {}).toLowerCase();
 
         const tieneTransporteSantiago = texto.includes('transporte santiago');
 
-        const tieneComentario =
-          texto.includes('coment') ||
-          texto.includes('llamad') ||
-          texto.includes('contact');
+        const comentarioTexto = String(item.__EMPTY_19 || '').trim();
+
+        const tieneComentario = comentarioTexto.length > 10;
 
         const tienePendiente =
           texto.includes('pendiente') ||
@@ -166,9 +373,19 @@ export default function SistemaRutinas() {
             ? 'RETIRO EN TIENDA'
             : 'TRANSPORTE PAGO',
         });
+        console.log(item);
         return {
+          tienda: tiendaDetectada,
           detallePendiente,
           ...item,
+          ce:
+            Object.values(item).find(
+              (v) => typeof v === 'string' && v.startsWith('CE-DO-')
+            ) || '',
+
+          ubicacion: item.__EMPTY_9 || '',
+
+          volumen: Number(item.__EMPTY_13 || 0),
 
           diasAlmacen,
 
@@ -192,6 +409,9 @@ export default function SistemaRutinas() {
       );
 
       setCompras(comprasLimpias);
+
+      console.log('PRIMER REGISTRO');
+      console.log(comprasLimpias[0]);
 
       console.log(comprasLimpias[0]);
     };
@@ -217,8 +437,8 @@ export default function SistemaRutinas() {
 
   const limpiarFormulario = () => {
     setTareas(
-      tareasBase.map((t) => ({
-        nombre: t,
+      rutinasBase.map((r) => ({
+        nombre: r.nombre,
         realizada: false,
         observacion: '',
       }))
@@ -244,6 +464,7 @@ export default function SistemaRutinas() {
       observacion: t.observacion || '',
       fecha: new Date().toLocaleDateString(),
       hora: new Date().toLocaleTimeString(),
+      tienda,
     }));
 
     const { error } = await supabase.from('rutinas').insert(nuevosRegistros);
@@ -278,21 +499,100 @@ export default function SistemaRutinas() {
       .map((h) => h.rutina)
   ).size;
 
-  const sinActividad = colaboradores.length - colaboradoresActivos;
+  const porcentajeProgreso =
+    rutinasBase.length > 0
+      ? Math.round((rutinasColaborador / rutinasBase.length) * 100)
+      : 0;
+
+  const sinActividad = listaColaboradores.length - colaboradoresActivos;
 
   const estadoColaboradores = useMemo(() => {
-    return colaboradores.map((c) => {
-      const registros = registrosHoy.filter((h) => h.colaborador === c);
+    return listaColaboradores.map((c) => {
+      const registros = registrosHoy.filter((h) => h.colaborador === c.nombre);
 
       return {
-        nombre: c,
+        nombre: c.nombre,
 
         total: new Set(registros.map((h) => h.rutina)).size,
 
         estado: registros.length > 0 ? 'ACTIVO' : 'SIN ACTIVIDAD',
       };
     });
-  }, [registrosHoy]);
+  }, [registrosHoy, listaColaboradores]);
+
+  const rankingRutinas = useMemo(() => {
+    const conteo: Record<string, number> = {};
+
+    historial.forEach((r) => {
+      conteo[r.rutina] = (conteo[r.rutina] || 0) + 1;
+    });
+
+    return Object.entries(conteo)
+      .map(([rutina, total]) => ({
+        rutina,
+        total,
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [historial]);
+
+  const conteoRutinas = useMemo(() => {
+    const conteo: Record<string, number> = {};
+
+    historial.forEach((h) => {
+      const nombre = (h.rutina || '').trim();
+
+      if (!nombre) return;
+
+      conteo[nombre] = (conteo[nombre] || 0) + 1;
+    });
+
+    return conteo;
+  }, [historial]);
+
+  if (!tiendaAutorizada) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-8 rounded-3xl shadow-xl text-center">
+          <h2 className="text-2xl font-bold mb-4">Tienda protegida</h2>
+
+          <p className="mb-6">Seleccione una tienda para continuar.</p>
+
+          <select
+            className="border rounded-xl p-3 w-full"
+            onChange={(e) => {
+              const nuevaTienda = e.target.value;
+
+              if (!nuevaTienda) return;
+
+              const codigo = prompt(
+                `Ingrese el código de acceso para ${nuevaTienda}`
+              );
+
+              if (codigo !== CODIGOS_TIENDA[nuevaTienda]) {
+                alert('Código incorrecto');
+                return;
+              }
+
+              setCompras([]);
+              setHistorial([]);
+              setListaColaboradores([]);
+              setRutinasBase([]);
+              setTareas([]);
+
+              setTienda(nuevaTienda);
+              setTiendaAutorizada(true);
+            }}
+          >
+            <option value="">Seleccionar tienda</option>
+            <option value="SANTIAGO">SANTIAGO</option>
+            <option value="SANTO DOMINGO">SANTO DOMINGO</option>
+            <option value="BAVARO">BAVARO</option>
+            <option value="LA ROMANA">LA ROMANA</option>
+          </select>
+        </div>
+      </div>
+    );
+  }
 
   const historialFiltrado = historial.filter((h) => {
     const texto = busqueda.toLowerCase();
@@ -305,6 +605,7 @@ export default function SistemaRutinas() {
     );
   });
   const comprasFiltradas = compras.filter((c) => {
+    if (c.tienda !== tienda) return false;
     if (filtroTipo === 'PAQUETERIA' && !c.paqueteria) return false;
 
     if (
@@ -338,6 +639,22 @@ export default function SistemaRutinas() {
       (!filtroPrioridad || c.prioridad === filtroPrioridad)
     );
   });
+  const topVolumen = [...compras]
+    .filter((c) => c.tienda === tienda)
+    .filter((c) => {
+      const ubicacion = (c.ubicacion || '').trim();
+
+      const letra = ubicacion.charAt(0).toUpperCase();
+
+      if (letra < 'A' || letra > 'L') return false;
+
+      const partes = ubicacion.replace(/[A-Z]\s*/i, '').split('.');
+
+      const altura = Number(partes[1] || 0);
+
+      return altura >= 2 && Number(c.volumen || 0) >= 0.08;
+    })
+    .sort((a, b) => b.volumen - a.volumen);
 
   const totalCompras = compras.length;
 
@@ -394,11 +711,39 @@ export default function SistemaRutinas() {
               >
                 <option value="">Seleccionar</option>
 
-                {colaboradores.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {listaColaboradores.map((c) => (
+                  <option key={c.id} value={c.nombre}>
+                    {c.nombre}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div className="w-full md:w-80">
+              <label className="block text-sm mb-2 font-medium">Tienda</label>
+
+              <select
+                value={tienda}
+                onChange={(e) => {
+                  const nuevaTienda = e.target.value;
+                  const codigo = prompt(
+                    `Ingrese el código de acceso para ${nuevaTienda}`
+                  );
+
+                  if (codigo !== CODIGOS_TIENDA[nuevaTienda]) {
+                    alert('Código incorrecto');
+                    return;
+                  }
+
+                  setAdminAutorizado(false);
+                  setPestana('historial');
+                  setTienda(nuevaTienda);
+                }}
+                className="w-full border rounded-xl p-3"
+              >
+                <option value="SANTIAGO">SANTIAGO</option>
+                <option value="SANTO DOMINGO">SANTO DOMINGO</option>
+                <option value="BAVARO">BAVARO</option>
+                <option value="LA ROMANA">LA ROMANA</option>
               </select>
             </div>
           </div>
@@ -419,15 +764,33 @@ export default function SistemaRutinas() {
           </div>
 
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-2">Rutinas colaborador</h2>
-
-            <p className="text-5xl font-bold">{rutinasColaborador}</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow p-6">
             <h2 className="text-gray-500 mb-2">Sin actividad</h2>
 
             <p className="text-5xl font-bold">{sinActividad}</p>
+          </div>
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-gray-500 mb-3">Prioridades del día</h2>
+
+            <div className="space-y-2 text-sm">
+              {prioridadesDia.length === 0 ? (
+                <p className="text-gray-400">Sin prioridades</p>
+              ) : (
+                prioridadesDia.slice(0, 4).map((p, index) => (
+                  <div
+                    key={p.id}
+                    className={`font-bold ${
+                      p.prioridad === 'ALTA'
+                        ? 'text-red-600'
+                        : p.prioridad === 'MEDIA'
+                        ? 'text-orange-500'
+                        : 'text-green-600'
+                    }`}
+                  >
+                    {index + 1}. {p.descripcion}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
@@ -465,160 +828,220 @@ export default function SistemaRutinas() {
           )}
         </div>
 
-        {/* REGISTRO */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold">Registro Diario</h2>
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-2xl font-bold">Registro Diario</h2>
+            </div>
 
-            <button
-              onClick={guardarRutinas}
-              className="bg-black text-white px-6 py-3 rounded-xl"
-            >
-              Guardar
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setMostrarRegistro(!mostrarRegistro)}
+                className="text-2xl font-bold"
+              >
+                {mostrarRegistro ? '▲' : '▼'}
+              </button>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {mostrarRegistro && (
+            <>
+              <div className="flex justify-end mb-6">
+                <button
+                  onClick={guardarRutinas}
+                  className="bg-black text-white px-6 py-3 rounded-xl"
+                >
+                  Guardar
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-4">OK</th>
+                      <th className="py-4">Rutina</th>
+                      <th className="py-4 text-center">Total</th>
+                      <th className="py-4">Observación</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {tareas.map((tarea, index) => (
+                      <tr key={index} className="border-b">
+                        <td className="py-4">
+                          <input
+                            type="checkbox"
+                            checked={tarea.realizada}
+                            onChange={() => toggleTarea(index)}
+                            className="w-5 h-5"
+                          />
+                        </td>
+
+                        <td className="py-4 font-medium">{tarea.nombre}</td>
+
+                        <td className="py-4 text-center">
+                          <span className="font-bold text-blue-600">
+                            {conteoRutinas[tarea.nombre] || 0}
+                          </span>
+                        </td>
+
+                        <td className="py-4">
+                          <input
+                            type="text"
+                            value={tarea.observacion}
+                            onChange={(e) =>
+                              actualizarObservacion(index, e.target.value)
+                            }
+                            placeholder="Observación"
+                            className="border rounded-lg p-2 w-full"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+        {/* CONTROL COMPRAS */}
+        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
+          <div
+            className="flex justify-between items-center cursor-pointer mb-6"
+            onClick={() => setMostrarCompras(!mostrarCompras)}
+          >
+            <h2 className="text-2xl font-bold">Control de Compras</h2>
+
+            <span className="text-2xl font-bold">
+              {mostrarCompras ? '▲' : '▼'}
+            </span>
+          </div>
+
+          {mostrarCompras && (
+            <>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-gray-500 mt-1">
+                    Importa el Excel para analizar compras y pendientes.
+                  </p>
+                </div>
+
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={importarExcel}
+                  className="border p-3 rounded-xl"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="border rounded-2xl p-4">
+                  <p className="text-gray-500">Total compras</p>
+                  <p className="text-4xl font-bold">{totalCompras}</p>
+                </div>
+
+                <div className="border rounded-2xl p-4">
+                  <p className="text-gray-500">Sin comentario</p>
+                  <p className="text-4xl font-bold text-red-500">
+                    {comprasSinComentario}
+                  </p>
+                </div>
+
+                <div className="border rounded-2xl p-4">
+                  <p className="text-gray-500">Comentadas</p>
+                  <p className="text-4xl font-bold text-green-600">
+                    {comprasComentadas}
+                  </p>
+                </div>
+
+                <div className="border rounded-2xl p-4">
+                  <p className="text-gray-500">Prioridad alta</p>
+                  <p className="text-4xl font-bold text-orange-500">
+                    {prioridadAlta}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="border rounded-2xl p-4">
+                  <p className="text-gray-500">Mercancía pendiente</p>
+                  <p className="text-3xl font-bold">{pendientes}</p>
+                </div>
+
+                <div className="border rounded-2xl p-4">
+                  <p className="text-gray-500">Transporte pago</p>
+                  <p className="text-3xl font-bold">{transportePago}</p>
+                </div>
+
+                <div className="border rounded-2xl p-4">
+                  <p className="text-gray-500">Retiro en tienda</p>
+                  <p className="text-3xl font-bold">{retiroTienda}</p>
+                </div>
+
+                <div className="border rounded-2xl p-4">
+                  <p className="text-gray-500">Paqueterías</p>
+                  <p className="text-3xl font-bold">{paqueterias}</p>
+                </div>
+
+                <div className="border rounded-2xl p-4 bg-red-50">
+                  <p className="text-gray-500">
+                    Paqueterías vencidas (+3 días)
+                  </p>
+                  <p className="text-4xl font-bold text-red-600">
+                    {paqueteriasUrgentes}
+                  </p>
+                </div>
+
+                <div className="border rounded-2xl p-4 bg-red-50">
+                  <p className="text-gray-500">Compras críticas (+7 días)</p>
+                  <p className="text-4xl font-bold text-red-600">
+                    {comprasCriticas}
+                  </p>
+                </div>
+
+                <div className="border rounded-2xl p-4">
+                  <p className="text-gray-500">Seguimiento comentarios</p>
+                  <p className="text-4xl font-bold">{porcentajeComentadas}%</p>
+                </div>
+
+                <div className="border rounded-2xl p-4 bg-blue-50">
+                  <p className="text-gray-500">CE voluminosos</p>
+                  <p className="text-4xl font-bold text-blue-600">
+                    {topVolumen.length}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
+          <h2 className="text-2xl font-bold mb-6">📦 Top CE por Volumen</h2>
+
+          <div className="overflow-auto max-h-[500px]">
             <table className="w-full">
               <thead>
-                <tr className="border-b text-left">
-                  <th className="py-4">OK</th>
-
-                  <th className="py-4">Rutina</th>
-
-                  <th className="py-4">Observación</th>
+                <tr className="border-b">
+                  <th className="text-left py-3">CE</th>
+                  <th className="text-left py-3">Ubicación</th>
+                  <th className="text-left py-3">Volumen</th>
                 </tr>
               </thead>
 
               <tbody>
-                {tareas.map((tarea, index) => (
+                {topVolumen.map((c, index) => (
                   <tr key={index} className="border-b">
-                    <td className="py-4">
-                      <input
-                        type="checkbox"
-                        checked={tarea.realizada}
-                        onChange={() => toggleTarea(index)}
-                        className="w-5 h-5"
-                      />
-                    </td>
+                    <td className="py-3 font-medium">{c.ce}</td>
 
-                    <td className="py-4 font-medium">{tarea.nombre}</td>
+                    <td className="py-3">{c.ubicacion}</td>
 
-                    <td className="py-4">
-                      <input
-                        type="text"
-                        value={tarea.observacion}
-                        onChange={(e) =>
-                          actualizarObservacion(index, e.target.value)
-                        }
-                        placeholder="Observación"
-                        className="border rounded-lg p-2 w-full"
-                      />
-                    </td>
+                    <td className="py-3 font-bold text-red-600">{c.volumen}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
-
-        {/* CONTROL COMPRAS */}
-        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-2xl font-bold">Control de Compras</h2>
-
-              <p className="text-gray-500 mt-1">
-                Importa el Excel para analizar compras y pendientes.
-              </p>
-            </div>
-
-            <input
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={importarExcel}
-              className="border p-3 rounded-xl"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div className="border rounded-2xl p-4">
-              <p className="text-gray-500">Total compras</p>
-
-              <p className="text-4xl font-bold">{totalCompras}</p>
-            </div>
-
-            <div className="border rounded-2xl p-4">
-              <p className="text-gray-500">Sin comentario</p>
-
-              <p className="text-4xl font-bold text-red-500">
-                {comprasSinComentario}
-              </p>
-            </div>
-
-            <div className="border rounded-2xl p-4">
-              <p className="text-gray-500">Comentadas</p>
-
-              <p className="text-4xl font-bold text-green-600">
-                {comprasComentadas}
-              </p>
-            </div>
-
-            <div className="border rounded-2xl p-4">
-              <p className="text-gray-500">Prioridad alta</p>
-
-              <p className="text-4xl font-bold text-orange-500">
-                {prioridadAlta}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="border rounded-2xl p-4">
-              <p className="text-gray-500">Mercancía pendiente</p>
-
-              <p className="text-3xl font-bold">{pendientes}</p>
-            </div>
-
-            <div className="border rounded-2xl p-4">
-              <p className="text-gray-500">Transporte pago</p>
-
-              <p className="text-3xl font-bold">{transportePago}</p>
-            </div>
-
-            <div className="border rounded-2xl p-4">
-              <p className="text-gray-500">Retiro en tienda</p>
-
-              <p className="text-3xl font-bold">{retiroTienda}</p>
-            </div>
-
-            <div className="border rounded-2xl p-4">
-              <p className="text-gray-500">Paqueterías</p>
-
-              <p className="text-3xl font-bold">{paqueterias}</p>
-            </div>
-            <div className="border rounded-2xl p-4 bg-red-50">
-              <p className="text-gray-500">Paqueterías vencidas (+3 días)</p>
-
-              <p className="text-4xl font-bold text-red-600">
-                {paqueteriasUrgentes}
-              </p>
-            </div>
-            <div className="border rounded-2xl p-4 bg-red-50">
-              <p className="text-gray-500">Compras críticas (+7 días)</p>
-
-              <p className="text-4xl font-bold text-red-600">
-                {comprasCriticas}
-              </p>
-            </div>
-            <div className="border rounded-2xl p-4">
-              <p className="text-gray-500">Seguimiento comentarios</p>
-
-              <p className="text-4xl font-bold">{porcentajeComentadas}%</p>
-            </div>
-          </div>
-        </div>
-
         {/* HISTORIAL / SEGUIMIENTO */}
         <div className="bg-white rounded-3xl shadow-xl p-8">
           <div className="flex gap-4 mb-8">
@@ -640,6 +1063,25 @@ export default function SistemaRutinas() {
               }`}
             >
               Seguimiento Compras
+            </button>
+
+            <button
+              onClick={() => {
+                console.log('ADMIN AUTORIZADO:', adminAutorizado);
+                const codigo = prompt('Ingrese código de supervisor');
+
+                if (codigo !== CODIGOS_TIENDA[tienda]) {
+                  alert('Código incorrecto');
+                  return;
+                }
+
+                setPestana('admin');
+              }}
+              className={`px-6 py-3 rounded-xl font-medium ${
+                pestana === 'admin' ? 'bg-black text-white' : 'bg-gray-200'
+              }`}
+            >
+              Administración
             </button>
           </div>
 
@@ -695,7 +1137,6 @@ export default function SistemaRutinas() {
           )}
 
           {/* SEGUIMIENTO */}
-          {/* SEGUIMIENTO */}
           {pestana === 'seguimiento' && (
             <>
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
@@ -714,13 +1155,13 @@ export default function SistemaRutinas() {
                           onChange={(e) => setFiltroCompra(e.target.value)}
                         >
                           <option value="">▼ Todas</option>
-                        {Array.from(new Set(compras.map((c) => c.__EMPTY_4)))
-  .filter(Boolean)
-  .map((f, i) => (
-    <option key={i} value={f}>
-      {f}
-    </option>
-))}
+                          {Array.from(new Set(compras.map((c) => c.__EMPTY_4)))
+                            .filter(Boolean)
+                            .map((f, i) => (
+                              <option key={i} value={f}>
+                                {f}
+                              </option>
+                            ))}
                         </select>
                       </th>
 
@@ -875,6 +1316,135 @@ export default function SistemaRutinas() {
                 </table>
               </div>
             </>
+          )}
+          {pestana === 'admin' && (
+            <div className="bg-white rounded-3xl shadow-xl p-8">
+              <h2 className="text-2xl font-bold mb-8">Administración</h2>
+
+              {/* COLABORADORES */}
+
+              <h3 className="text-xl font-bold mb-4">Colaboradores</h3>
+
+              <div className="flex gap-3 mb-6">
+                <input
+                  value={nuevoColaborador}
+                  onChange={(e) => setNuevoColaborador(e.target.value)}
+                  placeholder="Nuevo colaborador"
+                  className="border rounded-xl p-3 flex-1"
+                />
+
+                <button
+                  onClick={agregarColaborador}
+                  className="bg-green-600 text-white px-6 rounded-xl"
+                >
+                  Agregar
+                </button>
+              </div>
+
+              <div className="space-y-2 mb-10">
+                {listaColaboradores.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex justify-between items-center border rounded-xl p-3"
+                  >
+                    <span>{c.nombre}</span>
+
+                    <button
+                      onClick={() => desactivarColaborador(c.id)}
+                      className="bg-red-500 text-white px-4 py-1 rounded"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* RUTINAS */}
+
+              <h3 className="text-xl font-bold mb-4">Rutinas</h3>
+
+              <div className="flex gap-3 mb-6">
+                <input
+                  value={nuevaRutina}
+                  onChange={(e) => setNuevaRutina(e.target.value)}
+                  placeholder="Nueva rutina"
+                  className="border rounded-xl p-3 flex-1"
+                />
+
+                <button
+                  onClick={agregarRutina}
+                  className="bg-green-600 text-white px-6 rounded-xl"
+                >
+                  Agregar
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {rutinasBase.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex justify-between items-center border rounded-xl p-3"
+                  >
+                    <span>{r.nombre}</span>
+
+                    <button
+                      onClick={() => eliminarRutina(r.id)}
+                      className="bg-red-500 text-white px-4 py-1 rounded"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                ))}
+                <div className="space-y-2">
+                  {prioridadesDia.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex justify-between items-center border rounded-xl p-3"
+                    >
+                      <span>
+                        [{p.prioridad}] {p.descripcion}
+                      </span>
+
+                      <button
+                        onClick={() => eliminarPrioridad(p.id)}
+                        className="bg-red-500 text-white px-4 py-1 rounded"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <h3 className="text-xl font-bold mt-10 mb-4">
+                Prioridades del día
+              </h3>
+
+              <div className="flex gap-3 mb-6">
+                <input
+                  value={nuevaPrioridad}
+                  onChange={(e) => setNuevaPrioridad(e.target.value)}
+                  placeholder="Nueva prioridad"
+                  className="border rounded-xl p-3 flex-1"
+                />
+
+                <select
+                  value={nivelPrioridad}
+                  onChange={(e) => setNivelPrioridad(e.target.value)}
+                  className="border rounded-xl p-3"
+                >
+                  <option value="ALTA">🔴 ALTA</option>
+                  <option value="MEDIA">🟡 MEDIA</option>
+                  <option value="BAJA">🟢 BAJA</option>
+                </select>
+
+                <button
+                  onClick={agregarPrioridad}
+                  className="bg-blue-600 text-white px-6 rounded-xl"
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
