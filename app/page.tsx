@@ -1176,8 +1176,8 @@ export default function SistemaRutinas() {
                 console.log('ADMIN AUTORIZADO:', adminAutorizado);
                 const codigo = prompt('Ingrese código de supervisor');
 
-                if (codigo !== CODIGOS_TIENDA[tienda]) {
-                  alert('Código incorrecto');
+               if (codigo !== CODIGO_ADMIN) {
+                  alert('Código de administrador incorrecto');
                   return;
                 }
 
