@@ -3,6 +3,12 @@
 import { supabase } from './lib/supabase';
 import { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
+import { Schoolbell } from 'next/font/google';
+
+const chalk = Schoolbell({
+  subsets: ['latin'],
+  weight: '400',
+});
 
 export default function SistemaRutinas() {
   const [pestana, setPestana] = useState('historial');
@@ -37,6 +43,7 @@ export default function SistemaRutinas() {
   const [prioridadesDia, setPrioridadesDia] = useState<any[]>([]);
   const [nuevaPrioridad, setNuevaPrioridad] = useState('');
   const [nivelPrioridad, setNivelPrioridad] = useState('ALTA');
+  const [filtroWhatsapp, setFiltroWhatsapp] = useState('');
 
   useEffect(() => {
     console.log('CAMBIO DE TIENDA');
@@ -74,6 +81,8 @@ export default function SistemaRutinas() {
   const [tareas, setTareas] = useState<any[]>([]);
 
   const cargarHistorial = async () => {
+    console.log('CARGANDO HISTORIAL DE TIENDA:', tienda);
+
     const { data, error } = await supabase
       .from('rutinas')
       .select('*')
@@ -82,12 +91,56 @@ export default function SistemaRutinas() {
         ascending: false,
       });
 
+    console.log('REGISTROS ENCONTRADOS:', data?.length);
+    console.log('PRIMEROS REGISTROS:', data?.slice(0, 5));
+
     if (error) {
       console.error(error);
       return;
     }
 
     setHistorial(data || []);
+  };
+
+  const enviarWhatsapp = (compra: any, index: number) => {
+    if (!colaborador) {
+      alert('Seleccione un colaborador antes de enviar WhatsApp');
+      return;
+    }
+    console.log(compra);
+    const telefono = String(compra.__EMPTY_16 || '').replace(/\D/g, '');
+
+    if (!telefono) {
+      alert('No hay teléfono para esta compra');
+      return;
+    }
+
+    const mensaje = encodeURIComponent(
+      `HEJ!, ${compra.__EMPTY_13},
+    
+    Esperamos que se encuentre muy bien.
+    
+    Le asiste ${colaborador}, representante de IKEA.
+    
+    Nos place informarle que su compra ${compra.__EMPTY_4} se encuentra disponible para retiro en nuestra tienda de Santiago.
+    
+    Agradeceríamos nos indique la fecha más próxima en que podrá retirarla, ya que el tiempo de almacenamiento es limitado.
+    
+    Quedamos atentos a su amable respuesta.
+    
+    ¡Que tenga un excelente día!`
+    );
+
+    window.open(`https://wa.me/${telefono}?text=${mensaje}`, '_blank');
+
+    const copia = [...compras];
+
+    copia[index] = {
+      ...copia[index],
+      enviadoWhatsapp: true,
+    };
+
+    setCompras(copia);
   };
 
   const cargarPrioridades = async () => {
@@ -317,17 +370,20 @@ export default function SistemaRutinas() {
         const comentarioTexto = String(item.__EMPTY_19 || '').trim();
 
         const tieneComentario = comentarioTexto.length > 10;
-
+        const esIncidencia = String(item.__EMPTY || '')
+          .toLowerCase()
+          .includes('incidencia');
         const tienePendiente =
+          esIncidencia ||
           texto.includes('pendiente') ||
           texto.includes('reserva') ||
           texto.includes('stock') ||
           texto.includes('pte mercancía') ||
-          texto.includes('pte mercancia');
+          texto.includes('pte incidencia');
 
         let detallePendiente = '';
-
-        if (texto.includes('reserva')) detallePendiente = 'Reserva';
+        if (esIncidencia) detallePendiente = item.__EMPTY_21 || 'Incidencia';
+        else if (texto.includes('reserva')) detallePendiente = 'Reserva';
         else if (texto.includes('stock')) detallePendiente = 'Falta stock';
         else if (
           texto.includes('pte mercancía') ||
@@ -377,6 +433,7 @@ export default function SistemaRutinas() {
         return {
           tienda: tiendaDetectada,
           detallePendiente,
+          esIncidencia,
           ...item,
           ce:
             Object.values(item).find(
@@ -402,6 +459,8 @@ export default function SistemaRutinas() {
           prioridad,
 
           paqueteria: esPaqueteria,
+          telefono: String(item.__EMPTY_17 || '').trim(),
+          enviadoWhatsapp: false,
         };
       });
       const comprasLimpias = depurado.filter(
@@ -768,23 +827,70 @@ export default function SistemaRutinas() {
 
             <p className="text-5xl font-bold">{sinActividad}</p>
           </div>
-          <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-gray-500 mb-3">Prioridades del día</h2>
+          <div
+            className="
+    rounded-3xl
+    p-6
+    shadow-2xl
+    border-4
+    border-yellow-900
+    bg-gradient-to-br
+    from-green-900
+    via-green-800
+    to-green-950
+    text-white
+    relative
+    overflow-hidden
+  "
+          >
+            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/chalkboard.png')]"></div>
 
-            <div className="space-y-2 text-sm">
+            {/* TÍTULO FIJO */}
+            <h2 className="text-l font-bold mb-1 text-center tracking-wide relative z-10">
+              📋 PRIORIDADES DEL DÍA Y ASIGNACIONES DE TAREAS
+            </h2>
+
+            {/* LISTA CON SCROLL */}
+            <div
+              className="
+      relative
+      z-10
+      space-y-3
+      max-h-40
+      overflow-y-auto
+      pr-2
+      scrollbar-thin
+      scrollbar-thumb-green-700
+      scrollbar-track-transparent
+      drop-shadow-[0_0_3px_rgba(255,255,255,0.4)]
+    "
+              style={{
+                scrollbarWidth: 'thin',
+              }}
+            >
               {prioridadesDia.length === 0 ? (
-                <p className="text-gray-400">Sin prioridades</p>
+                <p className="italic text-gray-300">Sin prioridades</p>
               ) : (
-                prioridadesDia.slice(0, 4).map((p, index) => (
+                prioridadesDia.map((p, index) => (
                   <div
                     key={p.id}
-                    className={`font-bold ${
+                    className={`
+                    ${chalk.className}
+                    text-lg
+                    font-bold
+                    tracking-wide
+                    leading-relaxed
+                    drop-shadow-lg
+                    ${
                       p.prioridad === 'ALTA'
-                        ? 'text-red-600'
+                        ? 'text-red-300'
                         : p.prioridad === 'MEDIA'
-                        ? 'text-orange-500'
-                        : 'text-green-600'
-                    }`}
+                        ? 'text-yellow-300'
+                        : p.prioridad === 'BAJA'
+                        ? 'text-green-300'
+                        : 'text-white'
+                    }
+                  `}
                   >
                     {index + 1}. {p.descripcion}
                   </div>
@@ -1236,6 +1342,18 @@ export default function SistemaRutinas() {
                           <option value="7+">7 o más días</option>
                         </select>
                       </th>
+                      <th className="sticky top-0 bg-white z-10 py-4">
+                        WhatsApp
+                        <br />
+                        <select
+                          className="border rounded p-1 text-xs mt-1"
+                          onChange={(e) => setFiltroWhatsapp(e.target.value)}
+                        >
+                          <option value="">▼ Todos</option>
+                          <option value="ENVIADO">ENVIADO</option>
+                          <option value="PENDIENTE">PENDIENTE</option>
+                        </select>
+                      </th>
                     </tr>
                   </thead>
 
@@ -1271,9 +1389,9 @@ export default function SistemaRutinas() {
                           {c.pendiente ? (
                             <span
                               title={
-                                c.__EMPTY_19 ||
-                                c.detallePendiente ||
-                                'Sin detalle'
+                                c.esIncidencia
+                                  ? 'Incidencia'
+                                  : c.detallePendiente || 'Incidencia'
                               }
                               className="text-orange-500 font-bold cursor-help"
                             >
@@ -1309,6 +1427,18 @@ export default function SistemaRutinas() {
                               {c.diasAlmacen}
                             </span>
                           )}
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => enviarWhatsapp(c, index)}
+                            className={`px-3 py-1 rounded text-white ${
+                              c.enviadoWhatsapp
+                                ? 'bg-orange-500'
+                                : 'bg-green-600'
+                            }`}
+                          >
+                            {c.enviadoWhatsapp ? 'REENVIAR' : 'ENVIAR'}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1435,6 +1565,7 @@ export default function SistemaRutinas() {
                   <option value="ALTA">🔴 ALTA</option>
                   <option value="MEDIA">🟡 MEDIA</option>
                   <option value="BAJA">🟢 BAJA</option>
+                  <option value="TAREA">⚪ TAREA</option>
                 </select>
 
                 <button
