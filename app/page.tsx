@@ -116,7 +116,7 @@ export default function SistemaRutinas() {
     }
 
     const mensaje = encodeURIComponent(
-      `HEJ!, ${compra.__EMPTY_13},
+      `HEJ!, ${compra.__EMPTY_14},
     
     Esperamos que se encuentre muy bien.
     
