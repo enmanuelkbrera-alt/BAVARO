@@ -69,7 +69,7 @@ export default function SistemaRutinas() {
     cargarPrioridades();
   }, [tienda]);
 
-  const CODIGO_ADMIN = '1234';
+  const CODIGO_ADMIN = '12345';
 
   const CODIGOS_TIENDA: Record<string, string> = {
     SANTIAGO: '1234',
