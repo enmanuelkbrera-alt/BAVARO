@@ -108,18 +108,7 @@ export default function SistemaRutinas() {
       return;
     }
     console.log(compra);
-    let telefono = String(compra.__EMPTY_16 || '').replace(/\D/g, '');
-    console.log('Telefono:', telefono);
-console.log('URL:', `https://wa.me/${telefono}?text=${mensaje}`);
-
-if (telefono.length === 10) {
-  telefono = '1' + telefono;
-}
-
-    if (!telefono) {
-      alert('No hay teléfono para esta compra');
-      return;
-    }
+   const enviarWhatsapp = (compra: any, index: number) => { if (!colaborador) { alert('Seleccione un colaborador antes de enviar WhatsApp'); return; } console.log(compra); const telefono = String(compra.__EMPTY_16 || '').replace(/\D/g, ''); if (!telefono) { alert('No hay teléfono para esta compra'); return; }
 
     const mensaje = encodeURIComponent(
       `HEJ!, ${compra.__EMPTY_14},
