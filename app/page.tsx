@@ -108,7 +108,11 @@ export default function SistemaRutinas() {
       return;
     }
     console.log(compra);
-    const telefono = String(compra.__EMPTY_16 || '').replace(/\D/g, '');
+    let telefono = String(compra.__EMPTY_16 || '').replace(/\D/g, '');
+
+if (telefono.length === 10) {
+  telefono = '1' + telefono;
+}
 
     if (!telefono) {
       alert('No hay teléfono para esta compra');
