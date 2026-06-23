@@ -109,6 +109,8 @@ export default function SistemaRutinas() {
     }
     console.log(compra);
     let telefono = String(compra.__EMPTY_16 || '').replace(/\D/g, '');
+    console.log('Telefono:', telefono);
+console.log('URL:', `https://wa.me/${telefono}?text=${mensaje}`);
 
 if (telefono.length === 10) {
   telefono = '1' + telefono;
