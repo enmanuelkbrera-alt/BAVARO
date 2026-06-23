@@ -102,26 +102,27 @@ export default function SistemaRutinas() {
     setHistorial(data || []);
   };
 
-  const enviarWhatsapp = (compra: any, index: number) => {
+   const enviarWhatsapp = (compra: any, index: number) => {
     if (!colaborador) {
       alert('Seleccione un colaborador antes de enviar WhatsApp');
       return;
     }
     console.log(compra);
-   const enviarWhatsapp = (compra: any, index: number) => { if (!colaborador) { alert('Seleccione un colaborador antes de enviar WhatsApp'); return; } console.log(compra); const telefono = String(compra.__EMPTY_16 || '').replace(/\D/g, ''); if (!telefono) { alert('No hay teléfono para esta compra'); return; }
+    const telefono = String(compra.__EMPTY_17 || '').replace(/\D/g, '');
+
+    if (!telefono) {
+      alert('No hay teléfono para esta compra');
+      return;
+    }
 
     const mensaje = encodeURIComponent(
       `HEJ!, ${compra.__EMPTY_14},
-    
-    Esperamos que se encuentre muy bien.
-    
+  
     Le asiste ${colaborador}, representante de IKEA.
     
     Nos place informarle que su compra ${compra.__EMPTY_4} se encuentra disponible para retiro en nuestra tienda de Santiago.
     
     Agradeceríamos nos indique la fecha más próxima en que podrá retirarla, ya que el tiempo de almacenamiento es limitado.
-    
-    Quedamos atentos a su amable respuesta.
     
     ¡Que tenga un excelente día!`
     );
